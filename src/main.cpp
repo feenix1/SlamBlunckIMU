@@ -1,25 +1,18 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <7Semi_BNO055.h>
+#include <Adafruit_BNO055.h>
 
-BNO055_7Semi imu = BNO055_7Semi();
+Adafruit_BNO055 imuSensor = Adafruit_BNO055();
 
-
-
-// put function declarations here:
-int myFunction(int, int);
+float pitch = 0;
+float roll = 0;
+float yaw = 0;
 
 void setup() {
-  // put your setup code here, to run once:
-  imu.begin();
+  Serial.begin(9600);
+  imuSensor.begin();
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  printf("hello world");
-}
-
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
+  imuSensor.printSensorDetails();
 }
