@@ -27,7 +27,7 @@ void error() {
 File dataFile;
 
 // Schema
-String header = "timestamp,accelX,accelY,accelZ,gravX,gravY,gravZ,angVelX,angVelY,angVelZ,pitch,roll,heading,temprature,sysCal,gyroCal,accelCal,magCal";
+String header = "timestamp,accelX,accelY,accelZ,gravX,gravY,gravZ,angVelX,angVelY,angVelZ,pitch,roll,heading,w,x,y,z,temprature,sysCal,gyroCal,accelCal,magCal";
 
 void setup() {
   
@@ -122,7 +122,12 @@ void loop() {
   // lineOut += "Orientation: ";
   lineOut += String(pitch) + ","; 
   lineOut += String(roll) + ","; 
-  lineOut += String(heading) + ","; 
+  lineOut += String(heading) + ",";
+
+  lineOut += String(w) + ","; 
+  lineOut += String(x) + ","; 
+  lineOut += String(y) + ",";
+  lineOut += String(z) + ",";
 
   lineOut += String(temprature) + ","; 
 
