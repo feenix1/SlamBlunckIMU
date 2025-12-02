@@ -1,11 +1,12 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <SPI.h>
-#include <7Semi_BNO055.h> 
-#include <SD.h> 
+#include <7Semi_BNO055.h>
+#include <SD.h>
 
-// #define ENABLE_SERIAL
-
+//#define ENABLE_SERIAL
+#define ENABLE_SD
+#define ENABLE_IMU
 
 // PIN DEFS
 const int chipSelect = 2;
@@ -13,10 +14,20 @@ const int chipSelect = 2;
 // GLOBAL IMU
 BNO055_7Semi imuSensor = BNO055_7Semi();
 
-void error() {
+// GLOBAL SD
+File dataFile;
+
+// Schema
+String header = "timestamp,accelX,accelY,accelZ,gravX,gravY,gravZ,angVelX,angVelY,angVelZ,pitch,roll,heading,w,x,y,z,temprature,sysCal,gyroCal,accelCal,magCal";
+
+int errorCycles = 30;
+
+// Slow error blink for SD card error, long error blink for IMU error
+
+void errorSD() {
   SPI.end();
   pinMode(LED_BUILTIN, OUTPUT);
-  while(true) {
+  for (int i = 0; i < errorCycles; i++) {
     digitalWrite(LED_BUILTIN, HIGH);
     delay(100);
     digitalWrite(LED_BUILTIN, LOW);
@@ -24,52 +35,21 @@ void error() {
   }
 }
 
-File dataFile;
-
-// Schema
-String header = "timestamp,accelX,accelY,accelZ,gravX,gravY,gravZ,angVelX,angVelY,angVelZ,pitch,roll,heading,w,x,y,z,temprature,sysCal,gyroCal,accelCal,magCal";
-
-void setup() {
-  
-  #ifdef ENABLE_SERIAL
-  Serial.begin(9600);
-  #endif
-
-  if (!SD.begin(chipSelect)) {
-    #ifdef ENABLE_SERIAL
-    Serial.println("SD start error");
-    #endif
-    error();
+void errorIMU() {
+  SPI.end();
+  pinMode(LED_BUILTIN, OUTPUT);
+  for (int i = 0; i < errorCycles; i++) {
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(500);
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(500);
   }
-
-  if (!imuSensor.begin()) {
-    #ifdef ENABLE_SERIAL
-    Serial.println("IMU start error");
-    #endif
-    error();
-  }
-  
-  imuSensor.setMode(Mode::NDOF);
-  imuSensor.setAxis(0x24, 0x00); // default
-  
-  dataFile = SD.open("log.txt", FILE_WRITE);
-  dataFile.println("\n=== CONTROLLER RESET =========================================\n");
-  dataFile.println(header);
-  dataFile.close();
 }
- 
 
-void loop() {
-  dataFile = SD.open("log.txt", FILE_WRITE);
-  if (!dataFile) {
-    #ifdef ENABLE_SERIAL
-    Serial.println("Could not open file");
-    #endif
-    error();
-  }
-  
+void logIMUData() {
+
   unsigned long timestamp = millis();
-
+  
   // X -left/+right, Y -back/+forward, Z -down,+up
 
   int16_t accelX, accelY, accelZ; // m/s^2
@@ -83,6 +63,7 @@ void loop() {
   float w, x, y, z;
   int8_t temprature;
 
+  #ifdef ENABLE_IMU
   imuSensor.readAccel(accelX, accelY, accelZ);
   // imuSensor.readLinear(linAccelX, linAccelY, linAccelZ);
   imuSensor.readGravity(gravX, gravY, gravZ);
@@ -97,6 +78,19 @@ void loop() {
   uint8_t accelCal;
   uint8_t magCal;
   imuSensor.calibBreakdown(sysCal, gyroCal, accelCal, magCal);
+  #else
+  accelX = accelY = accelZ = 0;
+  gravX = gravY = gravZ = 0;
+  angVelX = angVelY = angVelZ = 0;
+  pitch = roll = heading = 0.0f;
+  w = x = y = z = 0.0f;
+  temprature = 0;
+  uint8_t sysCal = 0;
+  uint8_t gyroCal = 0;
+  uint8_t accelCal = 0;
+  uint8_t magCal = 0;
+  #endif
+  
   
   String lineOut = "";
   
@@ -140,7 +134,69 @@ void loop() {
   #ifdef ENABLE_SERIAL
   Serial.println(lineOut);
   #endif
-  
+
+  #ifdef ENABLE_SD
+  dataFile = SD.open("log.txt", FILE_WRITE);
+  while (!dataFile) {
+    #ifdef ENABLE_SERIAL
+    Serial.println("Could not open file");
+    #endif
+    errorSD();
+    dataFile = SD.open("log.txt", FILE_WRITE);
+  }
+
   dataFile.println(lineOut);
   dataFile.close();
+  #ifdef ENABLE_SERIAL
+  Serial.println("Data successfully logged");
+  #endif
+  #endif
+}
+
+void setup() {
+  
+  #ifdef ENABLE_SERIAL
+  Serial.begin(9600);
+  delay(2000); // wait for serial monitor
+  #endif
+  
+  #ifdef ENABLE_SD
+  while (!SD.begin(chipSelect)) {
+    #ifdef ENABLE_SERIAL
+    Serial.println("SD Start Error");
+    #endif
+    errorSD();
+    }
+
+  dataFile = SD.open("log.txt", FILE_WRITE);
+  while (!dataFile) {
+    #ifdef ENABLE_SERIAL
+    Serial.println("Could not create/open log file");
+    #endif
+    errorSD();
+    dataFile = SD.open("log.txt", FILE_WRITE);
+  }
+
+  dataFile.println("\n========================================= CONTROLLER RESET =========================================\n");
+  dataFile.println(header);
+  dataFile.close();
+
+  #endif
+
+  #ifdef ENABLE_IMU
+    while (!imuSensor.begin()) {
+      #ifdef ENABLE_SERIAL
+      Serial.println("IMU start error");
+      #endif
+      errorIMU();
+    }
+    
+    imuSensor.setMode(Mode::NDOF);
+    imuSensor.setAxis(0x24, 0x00); // default
+  #endif
+}
+ 
+void loop() {
+  logIMUData();
+  //delay(100)
 }
